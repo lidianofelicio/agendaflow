@@ -1,0 +1,31 @@
+services:
+  agendaflow-db:
+    image: postgres:16-alpine
+    container_name: agendaflow_postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - agendaflow-pg-data:/var/lib/postgresql/data
+    networks:
+      - agendaflow-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  agendaflow-pg-data:
+    name: agendaflow_pg_data
+
+networks:
+  agendaflow-net:
+    name: agendaflow_network
+    driver: bridge
