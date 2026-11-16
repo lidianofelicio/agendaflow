@@ -1,13 +1,9 @@
+import { buildApp } from "./app.js";
+import { prisma } from "./infra/database/prisma-client.js";
+import { PrismaAppointmentRepository } from "./infra/repositories/prisma-appointment-repository.js";
 
-import Fastify from "fastify";
-
-const app = Fastify({
-  logger: true
-});
-
-app.get("/health", async () => {
-  return { status: "ok" };
-});
+const repository = new PrismaAppointmentRepository(prisma);
+const app = buildApp(repository);
 
 async function start() {
   try {
@@ -17,8 +13,22 @@ async function start() {
     });
   } catch (error) {
     app.log.error(error);
+    await prisma.$disconnect();
     process.exit(1);
   }
 }
 
-start();
+async function shutdown() {
+  await app.close();
+  await prisma.$disconnect();
+}
+
+process.on("SIGINT", () => {
+  void shutdown();
+});
+
+process.on("SIGTERM", () => {
+  void shutdown();
+});
+
+void start();
