@@ -1,7 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 
 import type {
+  AppointmentRecord,
   AppointmentRepository,
+  AppointmentStatus,
   ListAppointmentsFilters
 } from "../../application/appointments/appointment-repository.js";
 import type { AppointmentPeriod } from "../../domain/appointments/appointment.js";
@@ -38,8 +40,8 @@ export class PrismaAppointmentRepository implements AppointmentRepository {
     });
   }
 
-  async list(filters?: ListAppointmentsFilters): Promise<AppointmentPeriod[]> {
-    return this.prisma.appointment.findMany({
+  async list(filters?: ListAppointmentsFilters): Promise<AppointmentRecord[]> {
+    const appointments = await this.prisma.appointment.findMany({
       where: {
         status: "ACTIVE",
         ...(filters?.resourceId ? { resourceId: filters.resourceId } : {}),
@@ -50,10 +52,24 @@ export class PrismaAppointmentRepository implements AppointmentRepository {
         startsAt: "asc"
       },
       select: {
+        id: true,
         resourceId: true,
         startsAt: true,
-        endsAt: true
+        endsAt: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true
       }
     });
+
+    return appointments.map((appointment) => ({
+      id: appointment.id,
+      resourceId: appointment.resourceId,
+      startsAt: appointment.startsAt,
+      endsAt: appointment.endsAt,
+      status: appointment.status as AppointmentStatus,
+      createdAt: appointment.createdAt,
+      updatedAt: appointment.updatedAt
+    }));
   }
 }

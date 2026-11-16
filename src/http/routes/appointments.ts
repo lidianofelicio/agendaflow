@@ -68,9 +68,13 @@ export async function appointmentRoutes(
 
         return reply.status(200).send(
           appointments.map((appointment) => ({
+            id: appointment.id,
             resourceId: appointment.resourceId,
             startsAt: appointment.startsAt.toISOString(),
-            endsAt: appointment.endsAt.toISOString()
+            endsAt: appointment.endsAt.toISOString(),
+            status: appointment.status,
+            createdAt: appointment.createdAt.toISOString(),
+            updatedAt: appointment.updatedAt.toISOString()
           }))
         );
       } catch (error) {

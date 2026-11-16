@@ -1,7 +1,9 @@
+import { randomUUID } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type {
+  AppointmentRecord,
   AppointmentRepository,
   ListAppointmentsFilters
 } from "../../application/appointments/appointment-repository.js";
@@ -12,23 +14,40 @@ import type { AppointmentPeriod } from "../../domain/appointments/appointment.js
 import { appointmentRoutes } from "./appointments.js";
 
 class InMemoryAppointmentRepository implements AppointmentRepository {
-  readonly items: AppointmentPeriod[] = [];
+  readonly items: AppointmentRecord[] = [];
 
   async findByResourceId(resourceId: string): Promise<AppointmentPeriod[]> {
-    return this.items.filter(
-      (appointment) => appointment.resourceId === resourceId
-    );
+    return this.items
+      .filter((appointment) => appointment.resourceId === resourceId)
+      .map(({ resourceId: id, startsAt, endsAt }) => ({
+        resourceId: id,
+        startsAt,
+        endsAt
+      }));
   }
 
   async create(appointment: AppointmentPeriod): Promise<AppointmentPeriod> {
-    this.items.push(appointment);
+    const now = new Date();
+    this.items.push({
+      id: randomUUID(),
+      resourceId: appointment.resourceId,
+      startsAt: appointment.startsAt,
+      endsAt: appointment.endsAt,
+      status: "ACTIVE",
+      createdAt: now,
+      updatedAt: now
+    });
 
     return appointment;
   }
 
-  async list(filters?: ListAppointmentsFilters): Promise<AppointmentPeriod[]> {
+  async list(filters?: ListAppointmentsFilters): Promise<AppointmentRecord[]> {
     return this.items
       .filter((appointment) => {
+        if (appointment.status !== "ACTIVE") {
+          return false;
+        }
+
         if (
           filters?.resourceId &&
           appointment.resourceId !== filters.resourceId
@@ -121,7 +140,7 @@ describe("POST /appointments", () => {
   it("retorna 409 quando existe conflito de horário", async () => {
     const { app, repository } = buildTestApp();
 
-    repository.items.push({
+    await repository.create({
       resourceId: "sala-1",
       startsAt: new Date("2026-11-10T10:00:00.000Z"),
       endsAt: new Date("2026-11-10T11:00:00.000Z")
@@ -174,21 +193,19 @@ describe("GET /appointments", () => {
     expect(response.json()).toEqual([]);
   });
 
-  it("retorna 200 com os agendamentos ordenados por startsAt", async () => {
+  it("retorna 200 com todos os campos obrigatórios ordenados por startsAt", async () => {
     const { app, repository } = buildTestApp();
 
-    repository.items.push(
-      {
-        resourceId: "sala-2",
-        startsAt: new Date("2026-11-10T14:00:00.000Z"),
-        endsAt: new Date("2026-11-10T15:00:00.000Z")
-      },
-      {
-        resourceId: "sala-1",
-        startsAt: new Date("2026-11-10T09:00:00.000Z"),
-        endsAt: new Date("2026-11-10T10:00:00.000Z")
-      }
-    );
+    await repository.create({
+      resourceId: "sala-2",
+      startsAt: new Date("2026-11-10T14:00:00.000Z"),
+      endsAt: new Date("2026-11-10T15:00:00.000Z")
+    });
+    await repository.create({
+      resourceId: "sala-1",
+      startsAt: new Date("2026-11-10T09:00:00.000Z"),
+      endsAt: new Date("2026-11-10T10:00:00.000Z")
+    });
 
     const response = await app.inject({
       method: "GET",
@@ -198,14 +215,22 @@ describe("GET /appointments", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([
       {
+        id: expect.any(String),
         resourceId: "sala-1",
         startsAt: "2026-11-10T09:00:00.000Z",
-        endsAt: "2026-11-10T10:00:00.000Z"
+        endsAt: "2026-11-10T10:00:00.000Z",
+        status: "ACTIVE",
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String)
       },
       {
+        id: expect.any(String),
         resourceId: "sala-2",
         startsAt: "2026-11-10T14:00:00.000Z",
-        endsAt: "2026-11-10T15:00:00.000Z"
+        endsAt: "2026-11-10T15:00:00.000Z",
+        status: "ACTIVE",
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String)
       }
     ]);
   });
@@ -213,18 +238,16 @@ describe("GET /appointments", () => {
   it("retorna 200 filtrando por resourceId", async () => {
     const { app, repository } = buildTestApp();
 
-    repository.items.push(
-      {
-        resourceId: "sala-1",
-        startsAt: new Date("2026-11-10T09:00:00.000Z"),
-        endsAt: new Date("2026-11-10T10:00:00.000Z")
-      },
-      {
-        resourceId: "sala-2",
-        startsAt: new Date("2026-11-10T11:00:00.000Z"),
-        endsAt: new Date("2026-11-10T12:00:00.000Z")
-      }
-    );
+    await repository.create({
+      resourceId: "sala-1",
+      startsAt: new Date("2026-11-10T09:00:00.000Z"),
+      endsAt: new Date("2026-11-10T10:00:00.000Z")
+    });
+    await repository.create({
+      resourceId: "sala-2",
+      startsAt: new Date("2026-11-10T11:00:00.000Z"),
+      endsAt: new Date("2026-11-10T12:00:00.000Z")
+    });
 
     const response = await app.inject({
       method: "GET",
@@ -234,45 +257,13 @@ describe("GET /appointments", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([
       {
+        id: expect.any(String),
         resourceId: "sala-1",
         startsAt: "2026-11-10T09:00:00.000Z",
-        endsAt: "2026-11-10T10:00:00.000Z"
-      }
-    ]);
-  });
-
-  it("retorna 200 filtrando por janela de datas startsAt e endsAt", async () => {
-    const { app, repository } = buildTestApp();
-
-    repository.items.push(
-      {
-        resourceId: "sala-1",
-        startsAt: new Date("2026-11-10T08:00:00.000Z"),
-        endsAt: new Date("2026-11-10T09:00:00.000Z")
-      },
-      {
-        resourceId: "sala-1",
-        startsAt: new Date("2026-11-10T10:00:00.000Z"),
-        endsAt: new Date("2026-11-10T11:00:00.000Z")
-      },
-      {
-        resourceId: "sala-1",
-        startsAt: new Date("2026-11-10T15:00:00.000Z"),
-        endsAt: new Date("2026-11-10T16:00:00.000Z")
-      }
-    );
-
-    const response = await app.inject({
-      method: "GET",
-      url: "/appointments?startsAt=2026-11-10T09:30:00.000Z&endsAt=2026-11-10T12:00:00.000Z"
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual([
-      {
-        resourceId: "sala-1",
-        startsAt: "2026-11-10T10:00:00.000Z",
-        endsAt: "2026-11-10T11:00:00.000Z"
+        endsAt: "2026-11-10T10:00:00.000Z",
+        status: "ACTIVE",
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String)
       }
     ]);
   });

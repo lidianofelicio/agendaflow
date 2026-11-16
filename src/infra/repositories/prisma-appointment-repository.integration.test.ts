@@ -70,7 +70,7 @@ describe("POST /appointments com PostgreSQL", () => {
 });
 
 describe("GET /appointments com PostgreSQL", () => {
-  it("lista agendamentos ativos ordenados por startsAt e ignora cancelados", async () => {
+  it("lista agendamentos ativos com todos os campos e ignora cancelados", async () => {
     await app.inject({
       method: "POST",
       url: "/appointments",
@@ -108,14 +108,22 @@ describe("GET /appointments com PostgreSQL", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([
       {
+        id: expect.any(String),
         resourceId: "sala-1",
         startsAt: "2026-11-20T09:00:00.000Z",
-        endsAt: "2026-11-20T10:00:00.000Z"
+        endsAt: "2026-11-20T10:00:00.000Z",
+        status: "ACTIVE",
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String)
       },
       {
+        id: expect.any(String),
         resourceId: "sala-2",
         startsAt: "2026-11-20T14:00:00.000Z",
-        endsAt: "2026-11-20T15:00:00.000Z"
+        endsAt: "2026-11-20T15:00:00.000Z",
+        status: "ACTIVE",
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String)
       }
     ]);
   });
@@ -159,9 +167,13 @@ describe("GET /appointments com PostgreSQL", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([
       {
+        id: expect.any(String),
         resourceId: "sala-1",
         startsAt: "2026-11-20T10:00:00.000Z",
-        endsAt: "2026-11-20T11:00:00.000Z"
+        endsAt: "2026-11-20T11:00:00.000Z",
+        status: "ACTIVE",
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String)
       }
     ]);
   });

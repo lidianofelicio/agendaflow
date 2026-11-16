@@ -1,7 +1,7 @@
-import type { AppointmentPeriod } from "../../domain/appointments/appointment.js";
 import type {
+  AppointmentRecord,
   AppointmentRepository,
-  ListAppointmentsFilters,
+  ListAppointmentsFilters
 } from "./appointment-repository.js";
 
 export class InvalidAppointmentQueryError extends Error {
@@ -14,7 +14,9 @@ export class InvalidAppointmentQueryError extends Error {
 export class ListAppointments {
   constructor(private readonly repository: AppointmentRepository) {}
 
-  async execute(filters?: ListAppointmentsFilters): Promise<AppointmentPeriod[]> {
+  async execute(
+    filters?: ListAppointmentsFilters
+  ): Promise<AppointmentRecord[]> {
     if (filters?.resourceId !== undefined && filters.resourceId.trim() === "") {
       throw new InvalidAppointmentQueryError("resourceId cannot be empty");
     }
@@ -38,7 +40,7 @@ export class ListAppointments {
     return this.repository.list({
       ...(filters?.resourceId ? { resourceId: filters.resourceId.trim() } : {}),
       ...(filters?.startsAt ? { startsAt: filters.startsAt } : {}),
-      ...(filters?.endsAt ? { endsAt: filters.endsAt } : {}),
+      ...(filters?.endsAt ? { endsAt: filters.endsAt } : {})
     });
   }
 }
