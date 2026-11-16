@@ -1,6 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 
-import type { AppointmentRepository } from "../../application/appointments/appointment-repository.js";
+import type {
+  AppointmentRecord,
+  AppointmentRepository,
+  AppointmentStatus,
+  ListAppointmentsFilters
+} from "../../application/appointments/appointment-repository.js";
 import type { AppointmentPeriod } from "../../domain/appointments/appointment.js";
 
 export class PrismaAppointmentRepository implements AppointmentRepository {
@@ -33,5 +38,38 @@ export class PrismaAppointmentRepository implements AppointmentRepository {
         endsAt: true
       }
     });
+  }
+
+  async list(filters?: ListAppointmentsFilters): Promise<AppointmentRecord[]> {
+    const appointments = await this.prisma.appointment.findMany({
+      where: {
+        status: "ACTIVE",
+        ...(filters?.resourceId ? { resourceId: filters.resourceId } : {}),
+        ...(filters?.endsAt ? { startsAt: { lt: filters.endsAt } } : {}),
+        ...(filters?.startsAt ? { endsAt: { gt: filters.startsAt } } : {})
+      },
+      orderBy: {
+        startsAt: "asc"
+      },
+      select: {
+        id: true,
+        resourceId: true,
+        startsAt: true,
+        endsAt: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    return appointments.map((appointment) => ({
+      id: appointment.id,
+      resourceId: appointment.resourceId,
+      startsAt: appointment.startsAt,
+      endsAt: appointment.endsAt,
+      status: appointment.status as AppointmentStatus,
+      createdAt: appointment.createdAt,
+      updatedAt: appointment.updatedAt
+    }));
   }
 }

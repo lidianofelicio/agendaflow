@@ -1,8 +1,12 @@
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import type { AppointmentPeriod } from "../../domain/appointments/appointment.js";
-import type { AppointmentRepository } from "./appointment-repository.js";
-
+import type {
+  AppointmentRecord,
+  AppointmentRepository,
+  ListAppointmentsFilters
+} from "./appointment-repository.js";
 import {
   AppointmentConflictError,
   CreateAppointment,
@@ -10,18 +14,58 @@ import {
 } from "./create-appointment.js";
 
 class InMemoryAppointmentRepository implements AppointmentRepository {
-  readonly items: AppointmentPeriod[] = [];
+  readonly items: AppointmentRecord[] = [];
 
   async findByResourceId(resourceId: string): Promise<AppointmentPeriod[]> {
-    return this.items.filter(
-      (appointment) => appointment.resourceId === resourceId
-    );
+    return this.items
+      .filter((appointment) => appointment.resourceId === resourceId)
+      .map(({ resourceId: id, startsAt, endsAt }) => ({
+        resourceId: id,
+        startsAt,
+        endsAt
+      }));
   }
 
   async create(appointment: AppointmentPeriod): Promise<AppointmentPeriod> {
-    this.items.push(appointment);
+    const now = new Date();
+    this.items.push({
+      id: randomUUID(),
+      resourceId: appointment.resourceId,
+      startsAt: appointment.startsAt,
+      endsAt: appointment.endsAt,
+      status: "ACTIVE",
+      createdAt: now,
+      updatedAt: now
+    });
 
     return appointment;
+  }
+
+  async list(filters?: ListAppointmentsFilters): Promise<AppointmentRecord[]> {
+    return this.items
+      .filter((appointment) => {
+        if (appointment.status !== "ACTIVE") {
+          return false;
+        }
+
+        if (
+          filters?.resourceId &&
+          appointment.resourceId !== filters.resourceId
+        ) {
+          return false;
+        }
+
+        if (filters?.endsAt && !(appointment.startsAt < filters.endsAt)) {
+          return false;
+        }
+
+        if (filters?.startsAt && !(appointment.endsAt > filters.startsAt)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
   }
 }
 
@@ -39,7 +83,6 @@ describe("CreateAppointment", () => {
     await expect(createAppointment.execute(appointment)).resolves.toEqual(
       appointment
     );
-
     expect(repository.items).toHaveLength(1);
   });
 
@@ -56,7 +99,6 @@ describe("CreateAppointment", () => {
     await expect(createAppointment.execute(appointment)).rejects.toBeInstanceOf(
       InvalidAppointmentPeriodError
     );
-
     expect(repository.items).toHaveLength(0);
   });
 
@@ -64,7 +106,7 @@ describe("CreateAppointment", () => {
     const repository = new InMemoryAppointmentRepository();
     const createAppointment = new CreateAppointment(repository);
 
-    repository.items.push({
+    await repository.create({
       resourceId: "sala-1",
       startsAt: new Date("2026-11-10T10:00:00.000Z"),
       endsAt: new Date("2026-11-10T11:00:00.000Z")
@@ -79,7 +121,6 @@ describe("CreateAppointment", () => {
     await expect(createAppointment.execute(appointment)).rejects.toBeInstanceOf(
       AppointmentConflictError
     );
-
     expect(repository.items).toHaveLength(1);
   });
 });
