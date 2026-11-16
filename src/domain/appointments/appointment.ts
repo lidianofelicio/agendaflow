@@ -17,3 +17,8 @@ export function hasAppointmentConflict(
     newAppointment.startsAt < existingAppointment.endsAt
   );
 }
+export function isAppointmentPeriodValid(
+  appointment: AppointmentPeriod
+): boolean {
+  return appointment.startsAt < appointment.endsAt;
+}
