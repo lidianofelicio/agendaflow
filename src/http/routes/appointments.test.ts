@@ -1,8 +1,12 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { AppointmentRepository } from "../../application/appointments/appointment-repository.js";
+import type {
+  AppointmentRepository,
+  ListAppointmentsFilters
+} from "../../application/appointments/appointment-repository.js";
 import { CreateAppointment } from "../../application/appointments/create-appointment.js";
+import { ListAppointments } from "../../application/appointments/list-appointments.js";
 import type { AppointmentPeriod } from "../../domain/appointments/appointment.js";
 
 import { appointmentRoutes } from "./appointments.js";
@@ -21,6 +25,29 @@ class InMemoryAppointmentRepository implements AppointmentRepository {
 
     return appointment;
   }
+
+  async list(filters?: ListAppointmentsFilters): Promise<AppointmentPeriod[]> {
+    return this.items
+      .filter((appointment) => {
+        if (
+          filters?.resourceId &&
+          appointment.resourceId !== filters.resourceId
+        ) {
+          return false;
+        }
+
+        if (filters?.endsAt && !(appointment.startsAt < filters.endsAt)) {
+          return false;
+        }
+
+        if (filters?.startsAt && !(appointment.endsAt > filters.startsAt)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  }
 }
 
 const apps: FastifyInstance[] = [];
@@ -28,10 +55,12 @@ const apps: FastifyInstance[] = [];
 function buildTestApp() {
   const repository = new InMemoryAppointmentRepository();
   const createAppointment = new CreateAppointment(repository);
+  const listAppointments = new ListAppointments(repository);
   const app = Fastify();
 
   app.register(appointmentRoutes, {
-    createAppointment
+    createAppointment,
+    listAppointments
   });
 
   apps.push(app);
@@ -129,5 +158,141 @@ describe("POST /appointments", () => {
 
     expect(response.statusCode).toBe(400);
     expect(repository.items).toHaveLength(0);
+  });
+});
+
+describe("GET /appointments", () => {
+  it("retorna 200 com lista vazia quando não há agendamentos", async () => {
+    const { app } = buildTestApp();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/appointments"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([]);
+  });
+
+  it("retorna 200 com os agendamentos ordenados por startsAt", async () => {
+    const { app, repository } = buildTestApp();
+
+    repository.items.push(
+      {
+        resourceId: "sala-2",
+        startsAt: new Date("2026-11-10T14:00:00.000Z"),
+        endsAt: new Date("2026-11-10T15:00:00.000Z")
+      },
+      {
+        resourceId: "sala-1",
+        startsAt: new Date("2026-11-10T09:00:00.000Z"),
+        endsAt: new Date("2026-11-10T10:00:00.000Z")
+      }
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/appointments"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([
+      {
+        resourceId: "sala-1",
+        startsAt: "2026-11-10T09:00:00.000Z",
+        endsAt: "2026-11-10T10:00:00.000Z"
+      },
+      {
+        resourceId: "sala-2",
+        startsAt: "2026-11-10T14:00:00.000Z",
+        endsAt: "2026-11-10T15:00:00.000Z"
+      }
+    ]);
+  });
+
+  it("retorna 200 filtrando por resourceId", async () => {
+    const { app, repository } = buildTestApp();
+
+    repository.items.push(
+      {
+        resourceId: "sala-1",
+        startsAt: new Date("2026-11-10T09:00:00.000Z"),
+        endsAt: new Date("2026-11-10T10:00:00.000Z")
+      },
+      {
+        resourceId: "sala-2",
+        startsAt: new Date("2026-11-10T11:00:00.000Z"),
+        endsAt: new Date("2026-11-10T12:00:00.000Z")
+      }
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/appointments?resourceId=sala-1"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([
+      {
+        resourceId: "sala-1",
+        startsAt: "2026-11-10T09:00:00.000Z",
+        endsAt: "2026-11-10T10:00:00.000Z"
+      }
+    ]);
+  });
+
+  it("retorna 200 filtrando por janela de datas startsAt e endsAt", async () => {
+    const { app, repository } = buildTestApp();
+
+    repository.items.push(
+      {
+        resourceId: "sala-1",
+        startsAt: new Date("2026-11-10T08:00:00.000Z"),
+        endsAt: new Date("2026-11-10T09:00:00.000Z")
+      },
+      {
+        resourceId: "sala-1",
+        startsAt: new Date("2026-11-10T10:00:00.000Z"),
+        endsAt: new Date("2026-11-10T11:00:00.000Z")
+      },
+      {
+        resourceId: "sala-1",
+        startsAt: new Date("2026-11-10T15:00:00.000Z"),
+        endsAt: new Date("2026-11-10T16:00:00.000Z")
+      }
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/appointments?startsAt=2026-11-10T09:30:00.000Z&endsAt=2026-11-10T12:00:00.000Z"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([
+      {
+        resourceId: "sala-1",
+        startsAt: "2026-11-10T10:00:00.000Z",
+        endsAt: "2026-11-10T11:00:00.000Z"
+      }
+    ]);
+  });
+
+  it("retorna 400 quando os parâmetros de consulta são inválidos", async () => {
+    const { app } = buildTestApp();
+
+    const invalidDateResponse = await app.inject({
+      method: "GET",
+      url: "/appointments?startsAt=data-invalida"
+    });
+    expect(invalidDateResponse.statusCode).toBe(400);
+
+    const invalidRangeResponse = await app.inject({
+      method: "GET",
+      url: "/appointments?startsAt=2026-11-10T12:00:00.000Z&endsAt=2026-11-10T10:00:00.000Z"
+    });
+    expect(invalidRangeResponse.statusCode).toBe(400);
+    expect(invalidRangeResponse.json()).toMatchObject({
+      error: "INVALID_APPOINTMENT_QUERY"
+    });
   });
 });

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { AppointmentPeriod } from "../../domain/appointments/appointment.js";
-import type { AppointmentRepository } from "./appointment-repository.js";
-
+import type {
+  AppointmentRepository,
+  ListAppointmentsFilters
+} from "./appointment-repository.js";
 import {
   AppointmentConflictError,
   CreateAppointment,
@@ -20,8 +22,30 @@ class InMemoryAppointmentRepository implements AppointmentRepository {
 
   async create(appointment: AppointmentPeriod): Promise<AppointmentPeriod> {
     this.items.push(appointment);
-
     return appointment;
+  }
+
+  async list(filters?: ListAppointmentsFilters): Promise<AppointmentPeriod[]> {
+    return this.items
+      .filter((appointment) => {
+        if (
+          filters?.resourceId &&
+          appointment.resourceId !== filters.resourceId
+        ) {
+          return false;
+        }
+
+        if (filters?.endsAt && !(appointment.startsAt < filters.endsAt)) {
+          return false;
+        }
+
+        if (filters?.startsAt && !(appointment.endsAt > filters.startsAt)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
   }
 }
 
@@ -39,7 +63,6 @@ describe("CreateAppointment", () => {
     await expect(createAppointment.execute(appointment)).resolves.toEqual(
       appointment
     );
-
     expect(repository.items).toHaveLength(1);
   });
 
@@ -56,7 +79,6 @@ describe("CreateAppointment", () => {
     await expect(createAppointment.execute(appointment)).rejects.toBeInstanceOf(
       InvalidAppointmentPeriodError
     );
-
     expect(repository.items).toHaveLength(0);
   });
 
@@ -79,7 +101,6 @@ describe("CreateAppointment", () => {
     await expect(createAppointment.execute(appointment)).rejects.toBeInstanceOf(
       AppointmentConflictError
     );
-
     expect(repository.items).toHaveLength(1);
   });
 });
