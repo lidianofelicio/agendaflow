@@ -16,9 +16,9 @@ As decisões técnicas, a execução dos comandos, a revisão do código e a val
 
 ## 2. Ferramenta utilizada
 
-O ChatGPT foi utilizado como ferramenta de apoio durante o desenvolvimento do projeto.
+O ChatGPT e o Gemini foram utilizados como ferramentas de apoio durante o desenvolvimento e direcionamento do projeto.
 
-A ferramenta auxiliou na explicação de conceitos, elaboração de exemplos, orientação de procedimentos e organização da documentação.
+As ferramentas auxiliaram na explicação de conceitos, elaboração de exemplos, orientação de procedimentos e organização da documentação.
 
 ## 3. Principais aplicações
 
@@ -54,6 +54,7 @@ A IA auxiliou na elaboração e revisão dos seguintes documentos:
 - docs/openapi.yaml
 - CONTRIBUTORS.md
 - docs/ia.md
+- docs/desempenho
 
 Também foi utilizada como apoio para identificar e corrigir avisos de validação da documentação OpenAPI.
 
