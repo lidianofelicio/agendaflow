@@ -178,3 +178,77 @@ describe("GET /appointments com PostgreSQL", () => {
     ]);
   });
 });
+
+describe("Proteção contra concorrência com PostgreSQL", () => {
+  it("grava apenas um agendamento e retorna 409 na tentativa simultânea conflitante", async () => {
+    const payload = {
+      resourceId: "sala-concorrencia",
+      startsAt: "2026-12-10T10:00:00.000Z",
+      endsAt: "2026-12-10T11:00:00.000Z"
+    };
+
+    const [firstResponse, secondResponse] = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: "/appointments",
+        payload
+      }),
+      app.inject({
+        method: "POST",
+        url: "/appointments",
+        payload
+      })
+    ]);
+
+    const statusCodes = [
+      firstResponse.statusCode,
+      secondResponse.statusCode
+    ].sort((a, b) => a - b);
+
+    expect(statusCodes).toEqual([201, 409]);
+
+    const conflictResponse =
+      firstResponse.statusCode === 409 ? firstResponse : secondResponse;
+    expect(conflictResponse.json()).toMatchObject({
+      error: "APPOINTMENT_CONFLICT"
+    });
+
+    const records = await prisma.appointment.findMany({
+      where: { resourceId: "sala-concorrencia" }
+    });
+    expect(records).toHaveLength(1);
+  });
+
+  it("permite agendamentos simultâneos consecutivos sem sobreposição", async () => {
+    const [firstResponse, secondResponse] = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: "/appointments",
+        payload: {
+          resourceId: "sala-concorrencia",
+          startsAt: "2026-12-10T10:00:00.000Z",
+          endsAt: "2026-12-10T11:00:00.000Z"
+        }
+      }),
+      app.inject({
+        method: "POST",
+        url: "/appointments",
+        payload: {
+          resourceId: "sala-concorrencia",
+          startsAt: "2026-12-10T11:00:00.000Z",
+          endsAt: "2026-12-10T12:00:00.000Z"
+        }
+      })
+    ]);
+
+    expect([firstResponse.statusCode, secondResponse.statusCode]).toEqual([
+      201,
+      201
+    ]);
+
+    const records = await prisma.appointment.findMany({
+      where: { resourceId: "sala-concorrencia" }
+    });
+    expect(records).toHaveLength(2);
+  });
+});
