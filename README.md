@@ -19,6 +19,8 @@ API REST para criação e consulta de agendamentos, com validação de dados, pr
 
 - verificação de saúde da API;
 - criação de agendamentos;
+- consulta de agendamentos;
+- filtros por recurso e período;
 - validação de recurso, data inicial e data final;
 - rejeição de períodos inválidos;
 - prevenção de conflito para o mesmo recurso;
@@ -133,11 +135,9 @@ Aplique as migrations:
 npx prisma migrate deploy
 ```
 
-As migrations criam a tabela `appointments` e impedem que `startsAt` seja igual ou posterior a `endsAt`.
-
 ## Executar a API
 
-Modo de desenvolvimento:
+Inicie o servidor de desenvolvimento:
 
 ```bash
 npm run dev
@@ -221,6 +221,59 @@ Resposta `409 Conflict` quando o recurso já possui um agendamento no período:
 
 Horários consecutivos são permitidos. Por exemplo, um agendamento pode terminar às 11h e outro começar exatamente às 11h.
 
+### Consultar agendamentos
+
+```http
+GET /appointments
+```
+
+A consulta retorna apenas os agendamentos ativos. Agendamentos cancelados não aparecem. Os resultados são organizados do horário mais cedo para o mais tarde.
+
+Resposta `200 OK`:
+
+```json
+[
+  {
+    "id": "4c2f2757-7967-49cb-81f4-f71752f33925",
+    "resourceId": "sala-1",
+    "startsAt": "2026-12-10T10:00:00.000Z",
+    "endsAt": "2026-12-10T11:00:00.000Z",
+    "status": "ACTIVE",
+    "createdAt": "2026-11-16T20:00:00.000Z",
+    "updatedAt": "2026-11-16T20:00:00.000Z"
+  }
+]
+```
+
+Quando não existem registros, a API retorna:
+
+```json
+[]
+```
+
+#### Filtros opcionais
+
+A rota aceita os seguintes parâmetros de consulta:
+
+- `resourceId`: filtra pelo recurso;
+- `startsAt`: início da janela de consulta no padrão ISO 8601;
+- `endsAt`: término da janela de consulta no padrão ISO 8601.
+
+Exemplo:
+
+```http
+GET /appointments?resourceId=sala-1&startsAt=2026-12-10T09:00:00.000Z&endsAt=2026-12-10T12:00:00.000Z
+```
+
+Resposta `400 Bad Request` para filtros inválidos:
+
+```json
+{
+  "error": "INVALID_APPOINTMENT_QUERY",
+  "message": "startsAt must be before endsAt"
+}
+```
+
 ## Testes e verificações
 
 Testes unitários e da camada HTTP:
@@ -268,19 +321,24 @@ src/
 - um recurso não pode possuir períodos sobrepostos;
 - recursos diferentes podem utilizar o mesmo horário;
 - horários consecutivos não são considerados conflitantes;
-- somente agendamentos com status `ACTIVE` bloqueiam o horário.
+- somente agendamentos com status `ACTIVE` bloqueiam o horário;
+- a consulta não exibe agendamentos cancelados;
+- os resultados da consulta são ordenados por horário inicial.
 
 ## Organização da equipe
 
 ### Lidiano
 
 - estrutura inicial do projeto;
+- configuração de Node.js, TypeScript e Fastify;
 - domínio e validações;
 - regra de conflito;
 - caso de uso de criação;
 - rota `POST /appointments`;
 - integração da API com o Prisma;
-- testes unitários, HTTP e de integração.
+- testes unitários, HTTP e de integração;
+- ampliação dos cenários de conflito;
+- documentação de instalação, execução e uso da API.
 
 ### Júnior
 
@@ -288,15 +346,22 @@ src/
 - Prisma ORM;
 - schema e migrations;
 - isolamento de container, rede, volume e porta;
-- revisão técnica dos Pull Requests;
-- consulta de agendamentos em desenvolvimento.
+- correções resultantes da revisão técnica;
+- caso de uso de consulta;
+- rota `GET /appointments`;
+- filtros por recurso e período;
+- retorno do registro completo;
+- testes unitários, HTTP e de integração da consulta;
+- revisão técnica dos Pull Requests.
 
 ## Fluxo de colaboração
 
 As alterações são realizadas em branches próprias, registradas em commits e revisadas por Pull Requests antes de serem integradas à `main`.
 
+Cada integrante revisa o trabalho do outro antes do merge. O histórico de commits, comentários, revisões e Pull Requests permanece disponível no GitHub.
+
 ## Estado atual
 
-A criação de agendamentos está integrada ao PostgreSQL e testada.
+A criação e a consulta de agendamentos estão integradas ao PostgreSQL e cobertas por testes automatizados.
 
-A consulta de agendamentos será adicionada em um Pull Request separado.
+A API valida os dados recebidos, impede conflitos de horário para o mesmo recurso, permite horários consecutivos e oferece filtros de consulta por recurso e período.
