@@ -1,3 +1,4 @@
+
 services:
   agendaflow-db:
     image: postgres:16-alpine
@@ -20,6 +21,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  agendaflow-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      agendaflow-db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASS}@agendaflow-db:5432/${DB_NAME}?schema=public
+    ports:
+      - "3000:3000"
+    networks:
+      - agendaflow-net
 
 volumes:
   agendaflow-pg-data:
