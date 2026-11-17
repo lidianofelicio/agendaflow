@@ -89,3 +89,95 @@ describe("hasAppointmentConflict", () => {
     expect(isAppointmentPeriodValid(appointment)).toBe(false);
   });
 });
+describe("hasAppointmentConflict - cenários adicionais", () => {
+  it("detecta conflito quando os horários são exatamente iguais", () => {
+    const existingAppointment = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T10:00:00.000Z"),
+      endsAt: new Date("2026-12-10T11:00:00.000Z")
+    };
+
+    const newAppointment = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T10:00:00.000Z"),
+      endsAt: new Date("2026-12-10T11:00:00.000Z")
+    };
+
+    expect(
+      hasAppointmentConflict(existingAppointment, newAppointment)
+    ).toBe(true);
+  });
+
+  it("detecta conflito quando o novo horário está dentro do existente", () => {
+    const existingAppointment = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T10:00:00.000Z"),
+      endsAt: new Date("2026-12-10T12:00:00.000Z")
+    };
+
+    const newAppointment = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T10:30:00.000Z"),
+      endsAt: new Date("2026-12-10T11:00:00.000Z")
+    };
+
+    expect(
+      hasAppointmentConflict(existingAppointment, newAppointment)
+    ).toBe(true);
+  });
+
+  it("detecta conflito quando o novo horário contém o existente", () => {
+    const existingAppointment = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T10:30:00.000Z"),
+      endsAt: new Date("2026-12-10T11:00:00.000Z")
+    };
+
+    const newAppointment = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T10:00:00.000Z"),
+      endsAt: new Date("2026-12-10T12:00:00.000Z")
+    };
+
+    expect(
+      hasAppointmentConflict(existingAppointment, newAppointment)
+    ).toBe(true);
+  });
+
+  it("permite horários totalmente separados para o mesmo recurso", () => {
+    const existingAppointment = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T10:00:00.000Z"),
+      endsAt: new Date("2026-12-10T11:00:00.000Z")
+    };
+
+    const newAppointment = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T13:00:00.000Z"),
+      endsAt: new Date("2026-12-10T14:00:00.000Z")
+    };
+
+    expect(
+      hasAppointmentConflict(existingAppointment, newAppointment)
+    ).toBe(false);
+  });
+});
+
+describe("isAppointmentPeriodValid - datas inválidas", () => {
+  it("rejeita data inicial ou final inválida", () => {
+    const invalidStart = {
+      resourceId: "sala-1",
+      startsAt: new Date("data-inválida"),
+      endsAt: new Date("2026-12-10T11:00:00.000Z")
+    };
+
+    const invalidEnd = {
+      resourceId: "sala-1",
+      startsAt: new Date("2026-12-10T10:00:00.000Z"),
+      endsAt: new Date("data-inválida")
+    };
+
+    expect(isAppointmentPeriodValid(invalidStart)).toBe(false);
+    expect(isAppointmentPeriodValid(invalidEnd)).toBe(false);
+  });
+});
