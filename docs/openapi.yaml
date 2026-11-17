@@ -1,0 +1,240 @@
+
+
+openapi: 3.0.3
+
+info:
+  title: AgendaFlow API
+  version: 1.0.0
+  description: |
+    API REST para criacao e consulta de agendamentos.
+    Projeto B - Full Cycle.
+  license:
+    name: ISC
+    url: https://opensource.org/licenses/ISC
+
+servers:
+  - url: http://localhost:3000
+    description: Ambiente local
+
+
+security: []
+
+tags:
+  - name: Saude
+    description: Verificacao da disponibilidade da API
+
+  - name: Agendamentos
+    description: Criacao e consulta de agendamentos
+
+paths:
+  /health:
+    get:
+      tags: [Saude]
+      summary: Verificar a saude da API
+      operationId: verificarSaude
+      responses:
+        "200":
+          description: API funcionando
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /appointments:
+    post:
+      tags: [Agendamentos]
+      summary: Criar um agendamento
+      operationId: criarAgendamento
+      description: |
+        Cria um agendamento para um recurso.
+        O inicio deve ser anterior ao termino.
+        Periodos sobrepostos para o mesmo recurso
+        nao sao permitidos.
+        Horarios consecutivos sao permitidos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAppointment"
+      responses:
+        "201":
+          description: Agendamento criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedAppointment"
+
+        "400":
+          description: Dados ou periodo invalidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+        "409":
+          description: Conflito de horario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+    get:
+      tags: [Agendamentos]
+      summary: Consultar agendamentos
+      operationId: consultarAgendamentos
+      description: |
+        Retorna os agendamentos ativos, ordenados
+        pelo horario inicial.
+        Permite filtrar por recurso e periodo.
+      parameters:
+        - name: resourceId
+          in: query
+          required: false
+          description: Identificador do recurso
+          schema:
+            type: string
+            minLength: 1
+
+        - name: startsAt
+          in: query
+          required: false
+          description: Inicio da janela de consulta
+          schema:
+            type: string
+            format: date-time
+
+        - name: endsAt
+          in: query
+          required: false
+          description: Fim da janela de consulta
+          schema:
+            type: string
+            format: date-time
+
+      responses:
+        "200":
+          description: Lista de agendamentos ativos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Appointment"
+
+        "400":
+          description: Filtros invalidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+components:
+  schemas:
+    CreateAppointment:
+      type: object
+      additionalProperties: false
+      required:
+        - resourceId
+        - startsAt
+        - endsAt
+      properties:
+        resourceId:
+          type: string
+          minLength: 1
+          example: sala-1
+
+        startsAt:
+          type: string
+          format: date-time
+          example: "2026-12-10T10:00:00.000Z"
+
+        endsAt:
+          type: string
+          format: date-time
+          example: "2026-12-10T11:00:00.000Z"
+
+    CreatedAppointment:
+      type: object
+      required:
+        - resourceId
+        - startsAt
+        - endsAt
+      properties:
+        resourceId:
+          type: string
+          example: sala-1
+
+        startsAt:
+          type: string
+          format: date-time
+          example: "2026-12-10T10:00:00.000Z"
+
+        endsAt:
+          type: string
+          format: date-time
+          example: "2026-12-10T11:00:00.000Z"
+
+    Appointment:
+      type: object
+      required:
+        - id
+        - resourceId
+        - startsAt
+        - endsAt
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "4c2f2757-7967-49cb-81f4-f71752f33925"
+
+        resourceId:
+          type: string
+          example: sala-1
+
+        startsAt:
+          type: string
+          format: date-time
+          example: "2026-12-10T10:00:00.000Z"
+
+        endsAt:
+          type: string
+          format: date-time
+          example: "2026-12-10T11:00:00.000Z"
+
+        status:
+          type: string
+          example: ACTIVE
+
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-11-16T20:00:00.000Z"
+
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-11-16T20:00:00.000Z"
+
+    ApiError:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          example: APPOINTMENT_CONFLICT
+
+        message:
+          type: string
+          example: The resource already has an appointment during this period
