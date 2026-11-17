@@ -12,7 +12,8 @@
     "postinstall": "prisma generate",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:integration": "vitest run --config vitest.integration.config.mts"
+    "test:integration": "vitest run --config vitest.integration.config.mts",
+    "test:smoke": "k6 run scripts/smoke-appointments.js"
   },
   "keywords": [],
   "author": "",
